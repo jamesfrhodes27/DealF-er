@@ -1846,6 +1846,19 @@ st.set_page_config(
     layout="wide",
 )
 
+# ── Password gate ──────────────────────────────────────────────────────────────
+if not st.session_state.get("_authenticated"):
+    st.title("🔍 DealFinder")
+    pwd = st.text_input("Password", type="password", placeholder="Enter password to continue")
+    if pwd:
+        if pwd == st.secrets.get("app_password", ""):
+            st.session_state["_authenticated"] = True
+            st.rerun()
+        else:
+            st.error("Incorrect password.")
+    st.stop()
+# ──────────────────────────────────────────────────────────────────────────────
+
 st.title("🔍 DealFinder — ETA Business Acquisition Triage")
 st.caption(
     "Pulls listings from BizBuySell & BizQuest · "
