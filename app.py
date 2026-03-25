@@ -1851,7 +1851,7 @@ if not st.session_state.get("_authenticated"):
     st.title("🔍 DealFinder")
     pwd = st.text_input("Password", type="password", placeholder="Enter password to continue")
     if pwd:
-        if pwd == st.secrets.get("app_password", ""):
+        if pwd == st.secrets.get("sheets", {}).get("app_password", ""):
             st.session_state["_authenticated"] = True
             st.rerun()
         else:
