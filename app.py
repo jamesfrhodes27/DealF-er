@@ -362,11 +362,10 @@ Thank you,
 # PIPELINE HELPERS
 # ─────────────────────────────────────────────
 
-@st.cache_resource
 def _get_gsheet():
-    """Return the Google Sheet worksheet, or None if credentials unavailable."""
+    """Return (worksheet, error_str). worksheet is None if connection failed."""
     if not _GSPREAD_AVAILABLE:
-        return None
+        return None, "gspread not installed"
     try:
         creds = GCredentials.from_service_account_info(
             st.secrets["gcp_service_account"],
@@ -376,13 +375,17 @@ def _get_gsheet():
             ],
         )
         client = gspread.authorize(creds)
-        return client.open_by_url(st.secrets["sheets"]["pipeline_url"]).sheet1
-    except Exception:
-        return None
+        sheet = client.open_by_url(st.secrets["sheets"]["pipeline_url"]).sheet1
+        return sheet, None
+    except Exception as e:
+        return None, str(e)
 
 def load_pipeline() -> dict:
-    sheet = _get_gsheet()
+    sheet, err = _get_gsheet()
+    if err:
+        st.session_state["_gsheet_error"] = err
     if sheet is not None:
+        st.session_state.pop("_gsheet_error", None)
         try:
             rows = sheet.get_all_records()
             pipeline = {}
@@ -402,8 +405,8 @@ def load_pipeline() -> dict:
                     "listing":      listing,
                 }
             return pipeline
-        except Exception:
-            pass
+        except Exception as e:
+            st.session_state["_gsheet_error"] = str(e)
     # Fallback: local file (dev / offline)
     if _PIPELINE_FILE.exists():
         try:
@@ -413,7 +416,7 @@ def load_pipeline() -> dict:
     return {}
 
 def save_pipeline(pipeline: dict) -> None:
-    sheet = _get_gsheet()
+    sheet, _ = _get_gsheet()
     if sheet is not None:
         try:
             sheet.clear()
@@ -2865,6 +2868,13 @@ with tab_search:
 # ── Pipeline Tab ─────────────────────────────────────────────────────────────
 with tab_pipeline:
     pipeline = load_pipeline()
+
+    # Show Google Sheets connection status
+    _gsheet_err = st.session_state.get("_gsheet_error")
+    if _gsheet_err:
+        st.error(f"⚠️ Google Sheets connection failed — showing local data only.\n\n`{_gsheet_err}`")
+    else:
+        st.caption("✅ Pipeline synced with Google Sheets")
 
     # ── Per-stage summary counts — one metric per stage ───────────────────
     _sc: dict = {}
