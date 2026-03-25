@@ -21,6 +21,12 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
 from streamlit_autorefresh import st_autorefresh
+try:
+    import gspread
+    from google.oauth2.service_account import Credentials as GCredentials
+    _GSPREAD_AVAILABLE = True
+except ImportError:
+    _GSPREAD_AVAILABLE = False
 
 
 SESSION_DIR = pathlib.Path.home() / ".dealfinder_sessions"
@@ -356,15 +362,79 @@ Thank you,
 # PIPELINE HELPERS
 # ─────────────────────────────────────────────
 
-def load_pipeline() -> dict:
-    if not _PIPELINE_FILE.exists():
-        return {}
+@st.cache_resource
+def _get_gsheet():
+    """Return the Google Sheet worksheet, or None if credentials unavailable."""
+    if not _GSPREAD_AVAILABLE:
+        return None
     try:
-        return json.loads(_PIPELINE_FILE.read_text())
+        creds = GCredentials.from_service_account_info(
+            st.secrets["gcp_service_account"],
+            scopes=[
+                "https://spreadsheets.google.com/feeds",
+                "https://www.googleapis.com/auth/drive",
+            ],
+        )
+        client = gspread.authorize(creds)
+        return client.open_by_url(st.secrets["sheets"]["pipeline_url"]).sheet1
     except Exception:
-        return {}
+        return None
+
+def load_pipeline() -> dict:
+    sheet = _get_gsheet()
+    if sheet is not None:
+        try:
+            rows = sheet.get_all_records()
+            pipeline = {}
+            for row in rows:
+                key = row.get("key", "")
+                if not key:
+                    continue
+                try:
+                    listing = json.loads(row.get("listing_json") or "{}")
+                except Exception:
+                    listing = {}
+                pipeline[key] = {
+                    "stage":        row.get("stage", "New"),
+                    "notes":        row.get("notes", ""),
+                    "date_added":   row.get("date_added", ""),
+                    "date_updated": row.get("date_updated", ""),
+                    "listing":      listing,
+                }
+            return pipeline
+        except Exception:
+            pass
+    # Fallback: local file (dev / offline)
+    if _PIPELINE_FILE.exists():
+        try:
+            return json.loads(_PIPELINE_FILE.read_text())
+        except Exception:
+            return {}
+    return {}
 
 def save_pipeline(pipeline: dict) -> None:
+    sheet = _get_gsheet()
+    if sheet is not None:
+        try:
+            sheet.clear()
+            rows = [["key", "stage", "notes", "date_added", "date_updated", "listing_json"]]
+            for key, entry in pipeline.items():
+                listing_json = json.dumps(entry.get("listing", {}), default=str)
+                if len(listing_json) > 45000:
+                    listing_json = listing_json[:45000]
+                rows.append([
+                    key,
+                    entry.get("stage", "New"),
+                    entry.get("notes", ""),
+                    entry.get("date_added", ""),
+                    entry.get("date_updated", ""),
+                    listing_json,
+                ])
+            sheet.append_rows(rows, value_input_option="RAW")
+            return
+        except Exception:
+            pass
+    # Fallback: local file
     _PIPELINE_FILE.write_text(json.dumps(pipeline, indent=2, default=str))
 
 def pipeline_key(listing: dict) -> str:

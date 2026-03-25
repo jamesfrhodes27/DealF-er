@@ -3,3 +3,5 @@ streamlit-autorefresh>=1.0.1
 pandas>=2.0.0
 curl-cffi>=0.7.0
 beautifulsoup4>=4.12.0
+gspread>=6.0.0
+google-auth>=2.0.0
