@@ -1,0 +1,31 @@
+# Deal data & Excel models — never publish
+Targets/
+*.xlsx
+*.xls
+
+# Build scripts (ACM-specific, reference local paths)
+build_deal_model.py
+build_irr_moic.py
+build_sensitivity.py
+build_sensitivity_v2.py
+model_generator.py
+update_acm_model.py
+
+# Local config & project context
+CLAUDE.md
+SETUP.md
+run.bat
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+df_venv/
+
+# JWT session cache
+.dealfinder_sessions/
+
+# OS
+.DS_Store
+Thumbs.db

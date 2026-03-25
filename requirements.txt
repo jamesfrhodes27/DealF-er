@@ -1,0 +1,4 @@
+streamlit>=1.35.0
+pandas>=2.0.0
+curl-cffi>=0.7.0
+beautifulsoup4>=4.12.0
